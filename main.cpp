@@ -91,6 +91,165 @@ double tan_over_2_vectors(Eigen::Vector3d &vec_1, Eigen::Vector3d &vec_2)
 
 }
 
+void parametrization_uniform(Eigen::MatrixXd &V, Eigen::VectorXi &bnd,
+  Eigen::MatrixXd &bnd_uv, std::vector<std::vector<double>> &A,
+  Eigen::MatrixXd &V_uv_uni)
+{
+  Eigen::MatrixXd W;
+  W = Eigen::MatrixXd::Zero(V.rows(), V.rows());
+
+  // boundry mask
+  Eigen::MatrixXd bnd_mask ;
+  bnd_mask = Eigen::MatrixXd::Zero(V.rows(), 3);
+
+  for (size_t i = 0; i < bnd.size(); i++) {
+    bnd_mask(bnd(i), 0) = 1;
+    bnd_mask(bnd(i), 1) = bnd_uv(i,0);
+    bnd_mask(bnd(i), 2) = bnd_uv(i,1);
+  }
+
+  Eigen::MatrixXd b;
+  b = Eigen::MatrixXd::Zero(V.rows(), 2);
+
+  for (size_t i = 0; i < V.rows(); i++) {
+    if(bnd_mask(i, 0) == 1)
+    {
+      W(i,i) = 1;
+      b(i, 0) = bnd_mask(i, 1);
+      b(i, 1) = bnd_mask(i, 2);
+    }
+    else
+    {
+      std::vector<double> temp_adj = A[i];
+      int temp_len = temp_adj.size();
+      // std::cout << "Diagonal value is " << temp_len << '\n';
+      for (size_t j = 0; j < temp_adj.size(); j++) {
+        int k =  int(temp_adj[j]);
+        W(i, k) = 1;
+      }
+      W(i,i) = -1*temp_len;
+      // std::cout << "Inserted element is " << W.coeffRef(i,i) << '\n';
+    }
+  }
+  V_uv_uni = W.colPivHouseholderQr().solve(b);
+
+}
+
+void parametrization_harmonic_2(Eigen::MatrixXd &V, Eigen::VectorXi &bnd,
+  Eigen::MatrixXd &bnd_uv, std::vector<std::vector<double>> &A,
+  Eigen::MatrixXd &V_uv_uni)
+{
+  Eigen::MatrixXd W;
+  W = Eigen::MatrixXd::Zero(V.rows(), V.rows());
+
+  // boundry mask
+  Eigen::MatrixXd bnd_mask ;
+  bnd_mask = Eigen::MatrixXd::Zero(V.rows(), 3);
+
+  for (size_t i = 0; i < bnd.size(); i++) {
+    bnd_mask(bnd(i), 0) = 1;
+    bnd_mask(bnd(i), 1) = bnd_uv(i,0);
+    bnd_mask(bnd(i), 2) = bnd_uv(i,1);
+  }
+
+  Eigen::MatrixXd b;
+  b = Eigen::MatrixXd::Zero(V.rows(), 2);
+
+  for (size_t i = 0; i < V.rows(); i++) {
+    if(bnd_mask(i, 0) == 1)
+    {
+      W(i,i) = 1;
+      b(i, 0) = bnd_mask(i, 1);
+      b(i, 1) = bnd_mask(i, 2);
+    }
+    else
+    {
+      std::vector<double> temp_adj = A[i];
+      int temp_len = temp_adj.size();
+      // std::cout << "Diagonal value is " << temp_len << '\n';
+      for (size_t j = 0; j < temp_adj.size(); j++) {
+        int k =  int(temp_adj[j]);
+        // W(i, k) = 1;
+        // method 2 beginning
+        harm_pair temp_pair;
+        if(find_2_common_vertices(A[i], A[k], temp_pair))
+        {
+          // std::cout << "i and k are " << i << " " << k << '\n';
+          // std::cout << "Pair values are " << temp_pair.first << " " << temp_pair.second << '\n';
+          Eigen::Vector3d vec_1 = V.row(i) - V.row(temp_pair.first);
+          Eigen::Vector3d vec_2 = V.row(k) - V.row(temp_pair.first);
+          Eigen::Vector3d vec_3 = V.row(i) - V.row(temp_pair.second);
+          Eigen::Vector3d vec_4 = V.row(k) - V.row(temp_pair.second);
+          double cot_1 = cot_2_vectors(vec_1, vec_2);
+          double cot_2 = cot_2_vectors(vec_3, vec_4);
+          // std::cout << "cot values are " << cot_1 << " " << cot_2 << '\n';
+          W(i, k) = (cot_1 + cot_2)/2;
+          W(i,i) -= (cot_1 + cot_2)/2;
+        }
+      }
+    }
+  }
+  V_uv_uni = W.colPivHouseholderQr().solve(b);
+}
+
+void parametrization_harmonic_3(Eigen::MatrixXd &V, Eigen::VectorXi &bnd,
+  Eigen::MatrixXd &bnd_uv, std::vector<std::vector<double>> &A,
+  Eigen::MatrixXd &V_uv_uni)
+{
+  Eigen::MatrixXd W;
+  W = Eigen::MatrixXd::Zero(V.rows(), V.rows());
+
+  // boundry mask
+  Eigen::MatrixXd bnd_mask ;
+  bnd_mask = Eigen::MatrixXd::Zero(V.rows(), 3);
+
+  for (size_t i = 0; i < bnd.size(); i++) {
+    bnd_mask(bnd(i), 0) = 1;
+    bnd_mask(bnd(i), 1) = bnd_uv(i,0);
+    bnd_mask(bnd(i), 2) = bnd_uv(i,1);
+  }
+
+  Eigen::MatrixXd b;
+  b = Eigen::MatrixXd::Zero(V.rows(), 2);
+
+  for (size_t i = 0; i < V.rows(); i++) {
+    if(bnd_mask(i, 0) == 1)
+    {
+      W(i,i) = 1;
+      b(i, 0) = bnd_mask(i, 1);
+      b(i, 1) = bnd_mask(i, 2);
+    }
+    else
+    {
+      std::vector<double> temp_adj = A[i];
+      int temp_len = temp_adj.size();
+      // std::cout << "Diagonal value is " << temp_len << '\n';
+      for (size_t j = 0; j < temp_adj.size(); j++) {
+        int k =  int(temp_adj[j]);
+        // W(i, k) = 1;
+        // method 2 beginning
+        harm_pair temp_pair;
+        if(find_2_common_vertices(A[i], A[k], temp_pair))
+        {
+          // std::cout << "i and k are " << i << " " << k << '\n';
+          // std::cout << "Pair values are " << temp_pair.first << " " << temp_pair.second << '\n';
+          Eigen::Vector3d vec_1 = V.row(temp_pair.first) - V.row(k);
+          Eigen::Vector3d vec_2 = V.row(i) - V.row(k);
+          Eigen::Vector3d vec_3 = V.row(temp_pair.second) - V.row(k);
+
+          double tan_1 = tan_over_2_vectors(vec_1, vec_2);
+          double tan_2 = tan_over_2_vectors(vec_2, vec_3);
+          // std::cout << "cot values are " << tan_1 << " " << tan_2 << '\n';
+
+          W(i, k) = (tan_1 + tan_2)/(2*vec_2.norm());
+          W(i,i) -= (tan_1 + tan_2)/(2*vec_2.norm());
+        }
+      }
+    }
+  }
+  V_uv_uni = W.colPivHouseholderQr().solve(b);
+}
+
 
 
 
@@ -125,31 +284,31 @@ int main(int argc, char *argv[])
   // }
 
   // Eigen::SparseMatrix<double> W(V.rows(), V.rows());
-  Eigen::MatrixXd W;
-  W = Eigen::MatrixXd::Zero(V.rows(), V.rows());
-
-  // boundry mask
-  Eigen::MatrixXd bnd_mask ;
-  bnd_mask = Eigen::MatrixXd::Zero(V.rows(), 3);
-
-  for (size_t i = 0; i < bnd.size(); i++) {
-    bnd_mask(bnd(i), 0) = 1;
-    bnd_mask(bnd(i), 1) = bnd_uv(i,0);
-    bnd_mask(bnd(i), 2) = bnd_uv(i,1);
-  }
+  // Eigen::MatrixXd W;
+  // W = Eigen::MatrixXd::Zero(V.rows(), V.rows());
+  //
+  // // boundry mask
+  // Eigen::MatrixXd bnd_mask ;
+  // bnd_mask = Eigen::MatrixXd::Zero(V.rows(), 3);
+  //
+  // for (size_t i = 0; i < bnd.size(); i++) {
+  //   bnd_mask(bnd(i), 0) = 1;
+  //   bnd_mask(bnd(i), 1) = bnd_uv(i,0);
+  //   bnd_mask(bnd(i), 2) = bnd_uv(i,1);
+  // }
 
   // find the adjacency list
   std::vector<std::vector<double>> A;
   igl::adjacency_list(F,A, true);
-  Eigen::MatrixXd b;
-  b = Eigen::MatrixXd::Zero(V.rows(), 2);
-
-  for (size_t i = 0; i < A[10].size(); i++) {
-    std::cout << A[10][i] << " ";
-  }
-  std::cout << " end of A[0]" << '\n';
-  std::cout << "size of A " << A.size() << '\n';
-
+  // Eigen::MatrixXd b;
+  // b = Eigen::MatrixXd::Zero(V.rows(), 2);
+  //
+  // for (size_t i = 0; i < A[10].size(); i++) {
+  //   std::cout << A[10][i] << " ";
+  // }
+  // std::cout << " end of A[0]" << '\n';
+  // std::cout << "size of A " << A.size() << '\n';
+  //
   // for (size_t i = 0; i < V.rows(); i++) {
   //   if(bnd_mask(i, 0) == 1)
   //   {
@@ -165,11 +324,13 @@ int main(int argc, char *argv[])
   //     for (size_t j = 0; j < temp_adj.size(); j++) {
   //       int k =  int(temp_adj[j]);
   //       W(i, k) = 1;
-  //       W(i,i) -= 1;
-  //
   //     }
+  //     W(i,i) = -1*temp_len;
+  //     // std::cout << "Inserted element is " << W.coeffRef(i,i) << '\n';
   //   }
   // }
+
+  // std::cout << "Non zero element number is " << W.nonZeros() << '\n';
   //
   // for (size_t i = 0; i < V.rows(); i++) {
   //   if(bnd_mask(i, 0) == 1)
@@ -206,54 +367,55 @@ int main(int argc, char *argv[])
   //   }
   // }
 
-  for (size_t i = 0; i < V.rows(); i++) {
-    if(bnd_mask(i, 0) == 1)
-    {
-      W(i,i) = 1;
-      b(i, 0) = bnd_mask(i, 1);
-      b(i, 1) = bnd_mask(i, 2);
-    }
-    else
-    {
-      std::vector<double> temp_adj = A[i];
-      int temp_len = temp_adj.size();
-      // std::cout << "Diagonal value is " << temp_len << '\n';
-      for (size_t j = 0; j < temp_adj.size(); j++) {
-        int k =  int(temp_adj[j]);
-        // W(i, k) = 1;
-        // method 2 beginning
-        harm_pair temp_pair;
-        if(find_2_common_vertices(A[i], A[k], temp_pair))
-        {
-          std::cout << "i and k are " << i << " " << k << '\n';
-          std::cout << "Pair values are " << temp_pair.first << " " << temp_pair.second << '\n';
-          Eigen::Vector3d vec_1 = V.row(temp_pair.first) - V.row(k);
-          Eigen::Vector3d vec_2 = V.row(i) - V.row(k);
-          Eigen::Vector3d vec_3 = V.row(temp_pair.second) - V.row(k);
-
-          double tan_1 = tan_over_2_vectors(vec_1, vec_2);
-          double tan_2 = tan_over_2_vectors(vec_2, vec_3);
-          std::cout << "cot values are " << tan_1 << " " << tan_2 << '\n';
-
-          W(i, k) = (tan_1 + tan_2)/(2*vec_2.norm());
-          W(i,i) -= (tan_1 + tan_2)/(2*vec_2.norm());
-        }
-      }
-    }
-  }
+  // for (size_t i = 0; i < V.rows(); i++) {
+  //   if(bnd_mask(i, 0) == 1)
+  //   {
+  //     W(i,i) = 1;
+  //     b(i, 0) = bnd_mask(i, 1);
+  //     b(i, 1) = bnd_mask(i, 2);
+  //   }
+  //   else
+  //   {
+  //     std::vector<double> temp_adj = A[i];
+  //     int temp_len = temp_adj.size();
+  //     // std::cout << "Diagonal value is " << temp_len << '\n';
+  //     for (size_t j = 0; j < temp_adj.size(); j++) {
+  //       int k =  int(temp_adj[j]);
+  //       // W(i, k) = 1;
+  //       // method 2 beginning
+  //       harm_pair temp_pair;
+  //       if(find_2_common_vertices(A[i], A[k], temp_pair))
+  //       {
+  //         std::cout << "i and k are " << i << " " << k << '\n';
+  //         std::cout << "Pair values are " << temp_pair.first << " " << temp_pair.second << '\n';
+  //         Eigen::Vector3d vec_1 = V.row(temp_pair.first) - V.row(k);
+  //         Eigen::Vector3d vec_2 = V.row(i) - V.row(k);
+  //         Eigen::Vector3d vec_3 = V.row(temp_pair.second) - V.row(k);
+  //
+  //         double tan_1 = tan_over_2_vectors(vec_1, vec_2);
+  //         double tan_2 = tan_over_2_vectors(vec_2, vec_3);
+  //         std::cout << "cot values are " << tan_1 << " " << tan_2 << '\n';
+  //
+  //         W(i, k) = (tan_1 + tan_2)/(2*vec_2.norm());
+  //         W(i,i) -= (tan_1 + tan_2)/(2*vec_2.norm());
+  //       }
+  //     }
+  //   }
+  // }
 
 
 
   Eigen::VectorXd x_res, y_res;
-  // Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>, Eigen::Upper> solver;
+  // Eigen::SimplicialLDLT<Eigen::SparseMatrix<double> > solver;
   // x_res =solver.compute(W).solve(b.col(0));
   // y_res =solver.compute(W).solve(b.col(1));
-  x_res = W.colPivHouseholderQr().solve(b.col(0));
-  y_res = W.colPivHouseholderQr().solve(b.col(1));
+  // x_res = W.colPivHouseholderQr().solve(b.col(0));
+  // y_res = W.colPivHouseholderQr().solve(b.col(1));
   //
   Eigen::MatrixXd V_uv_uni(V.rows(), 2);
-  V_uv_uni.col(0) = x_res;
-  V_uv_uni.col(1) = y_res;
+  parametrization_harmonic_3(V, bnd, bnd_uv, A, V_uv_uni);
+  // V_uv_uni.col(0) = x_res;
+  // V_uv_uni.col(1) = y_res;
   // V_uv_uni =  W.colPivHouseholderQr().solve(b);
 
   // Harmonic parametrization for the internal vertices
