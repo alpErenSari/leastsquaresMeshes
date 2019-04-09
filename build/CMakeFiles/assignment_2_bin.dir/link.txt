@@ -1,0 +1,1 @@
+/usr/bin/c++   -fPIC  -rdynamic CMakeFiles/assignment_2_bin.dir/main.cpp.o  -o assignment_2_bin -lGL glad/libglad.a glfw/src/libglfw3.a -lrt -lm -ldl -lX11 -lpthread 
