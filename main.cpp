@@ -39,6 +39,12 @@ bool find_2_common_vertices(std::vector<double> &src, std::vector<double> &dst, 
     comm_2.second = common[1];
     return true;
   }
+  else if(common.size() == 1)
+  {
+    comm_2.first = common[0];
+    comm_2.second = common[0];
+    return true;
+  }
   else
   {
     std::cout << "Not two common vertices!" << '\n';
