@@ -13,26 +13,6 @@ Eigen::MatrixXd V_uv;
 
 typedef std::pair<size_t, size_t> harm_pair;
 
-bool key_down(igl::opengl::glfw::Viewer& viewer, unsigned char key, int modifier)
-{
-  if (key == '1')
-  {
-    // Plot the 3D mesh
-    viewer.data().set_mesh(V,F);
-    viewer.core.align_camera_center(V,F);
-  }
-  else if (key == '2')
-  {
-    // Plot the mesh in 2D using the UV coordinates as vertex coordinates
-    viewer.data().set_mesh(V_uv,F);
-    viewer.core.align_camera_center(V_uv,F);
-  }
-
-  viewer.data().compute_normals();
-
-  return false;
-}
-
 bool check_eigen_vector(Eigen::VectorXi &bnd, int key)
 {
   for (size_t i = 0; i < bnd.size(); i++) {
@@ -60,7 +40,21 @@ bool find_2_common_vertices(std::vector<double> &src, std::vector<double> &dst, 
     return true;
   }
   else
-    false;
+  {
+    std::cout << "Not two common vertices!" << '\n';
+    for (size_t i = 0; i < src.size(); i++) {
+      std::cout << src[i] << " ";
+      if(i==src.size()-1)
+        std::cout << '\n';
+    }
+    for (size_t i = 0; i < dst.size(); i++) {
+      std::cout << dst[i] << " ";
+      if(i==dst.size()-1)
+        std::cout << '\n';
+    }
+    return false;
+  }
+
 }
 
 double cot_2_vectors(Eigen::Vector3d &vec_1, Eigen::Vector3d &vec_2)
@@ -228,6 +222,8 @@ void parametrization_harmonic_2(Eigen::MatrixXd &V, Eigen::VectorXi &bnd,
           W(i, k) = (cot_1 + cot_2)/2;
           W(i,i) -= (cot_1 + cot_2)/2;
         }
+        else
+          std::cout << "Vertices are " << i << " and " << k << '\n';
       }
     }
   }
@@ -275,9 +271,9 @@ void parametrization_harmonic_3(Eigen::MatrixXd &V, Eigen::VectorXi &bnd,
         {
           // std::cout << "i and k are " << i << " " << k << '\n';
           // std::cout << "Pair values are " << temp_pair.first << " " << temp_pair.second << '\n';
-          Eigen::Vector3d vec_1 = V.row(temp_pair.first) - V.row(k);
-          Eigen::Vector3d vec_2 = V.row(i) - V.row(k);
-          Eigen::Vector3d vec_3 = V.row(temp_pair.second) - V.row(k);
+          Eigen::Vector3d vec_1 = V.row(temp_pair.first) - V.row(i);
+          Eigen::Vector3d vec_2 = V.row(k) - V.row(i);
+          Eigen::Vector3d vec_3 = V.row(temp_pair.second) - V.row(i);
 
           double tan_1 = tan_over_2_vectors(vec_1, vec_2);
           double tan_2 = tan_over_2_vectors(vec_2, vec_3);
@@ -298,7 +294,27 @@ void parametrization_harmonic_3(Eigen::MatrixXd &V, Eigen::VectorXi &bnd,
 int main(int argc, char *argv[])
 {
   // Load a mesh in OFF format
-  igl::readOFF("../../faces/face-low.off", V, F);
+  if(argc >= 2)
+    igl::readOFF(argv[1], V, F);
+  else
+  {
+    std::cerr << "You need to enter the mesh file path!" << '\n';
+    std::exit(1);
+  }
+
+  int method_no = 1;
+
+  try
+  {
+    if(argc >= 3)
+      method_no = std::stoi(argv[2]);
+  }
+  catch(...)
+  {
+    std::cout << "Method input cannot be converted to int" <<
+    std::endl;
+  }
+
 
   std::cout << "V size is " << V.rows() << '\n';
   std::cout << "F size is " << F.rows() << '\n';
@@ -308,6 +324,12 @@ int main(int argc, char *argv[])
   igl::boundary_loop(F,bnd);
 
   std::cout << "bnd size is " << bnd.size() << '\n';
+
+  // std::cout << "bnd vertices are" << '\n';
+  // for (size_t i = 0; i < bnd.size(); i++) {
+  //   std::cout << bnd[i] << " " << '\n';
+  // }
+  // std::cout << '\n';
 
   Eigen::MatrixXd P(bnd.size(), 3);
   for (size_t i = 0; i < bnd.size(); i++) {
@@ -456,7 +478,17 @@ int main(int argc, char *argv[])
   // y_res = W.colPivHouseholderQr().solve(b.col(1));
   //
   Eigen::MatrixXd V_uv_uni(V.rows(), 2);
-  parametrization_harmonic_3(V, bnd, bnd_uv, A, V_uv_uni);
+  if(method_no==1)
+    parametrization_uniform(V, bnd, bnd_uv, A, V_uv_uni);
+  else if(method_no==2)
+    parametrization_harmonic_2(V, bnd, bnd_uv, A, V_uv_uni);
+  else if(method_no==3)
+    parametrization_harmonic_3(V, bnd, bnd_uv, A, V_uv_uni);
+  else
+  {
+    std::cerr << "Invalid method number!" << '\n';
+    std::exit(1);
+  }
   // V_uv_uni.col(0) = x_res;
   // V_uv_uni.col(1) = y_res;
   // V_uv_uni =  W.colPivHouseholderQr().solve(b);
