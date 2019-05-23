@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.1)
-project(assignment_2)
+project(my_project)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
@@ -14,4 +14,3 @@ file(GLOB SRCFILES *.cpp)
 
 add_executable(${PROJECT_NAME}_bin main.cpp)
 target_link_libraries(${PROJECT_NAME}_bin igl::core igl::opengl igl::opengl_glfw )
-
