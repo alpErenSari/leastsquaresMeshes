@@ -6,297 +6,170 @@
 #include <vector>
 #include <cmath>
 #include <random>
+#include "fiboheap.h"
 
 
 Eigen::MatrixXd V;
 Eigen::MatrixXi F;
 Eigen::MatrixXd V_uv;
 
-typedef std::pair<size_t, size_t> harm_pair;
+typedef std::pair<double, int> dij_Pair;
 
-bool check_eigen_vector(Eigen::VectorXi &bnd, int key)
+struct dij_out
 {
-  for (size_t i = 0; i < bnd.size(); i++) {
-    if(bnd(i) == key)
-      return true;
-  }
-  return false;
+  double min_dist;
+  std::vector<int> prev;
+  std::vector<double> dist;
+  std::vector<int> parent;
+};
+
+double l2_norm(Eigen::MatrixXd &V, long int i, long int j)
+{
+  return sqrt(pow(V(i,0) - V(j,0), 2) + pow(V(i,1) - V(j,1), 2) +
+    pow(V(i,2) - V(j,2), 2));
 }
 
-bool find_2_common_vertices(std::vector<double> &src, std::vector<double> &dst, harm_pair &comm_2)
+dij_out dijkstra_fibo_heap(std::vector<std::vector<dij_Pair>> adj_vec, int src, int des)
 {
-  std::vector<double> common;
-  for (size_t i = 0; i < src.size(); i++) {
-    for (size_t j = 0; j < dst.size(); j++) {
-      if(src[i] == dst[j])
+      int V_m = adj_vec.size();
+      // std::cout << "V_m is " << V_m << std::endl;
+     std::vector<double> dist(V_m);     // The output array.  dist[i] will hold the shortest
+     std::vector<int> prev(V_m);
+     std::vector<bool> sptSet(V_m); // sptSet[i] will be true if vertex i is included in shortest
+
+                      // distance from src to i
+     std::vector<int> parent;
+     FibHeap <dij_Pair> pq;
+
+                     // path tree or shortest distance from src to i is finalized
+     // Distance of source vertex from itself is always 0
+
+     // Initialize all distances as INFINITE and stpSet[] as false
+     for (int i = 0; i < V_m; i++)
+     {
+       if(i == src)
+       {
+         pq.push(std::make_pair(0, i));
+         dist[i] = 0;
+       }
+       else
+       {
+         pq.push(std::make_pair(INT_MAX, i)), dist[i] = INT_MAX;
+       }
+       prev[i] = -1;
+     }
+
+     // Find shortest path for all vertices
+     while (!pq.empty())
+     {
+       // std::cout << "count number " << count << std::endl;
+       // Pick the minimum distance vertex from the set of vertices not
+       // yet processed. u is always equal to src in the first iteration.
+       int u = pq.top().second;
+       pq.pop();
+       // std::cout << "min vertex is " << u << std::endl;
+       // if(u == des)
+       //   break;
+
+       std::vector<dij_Pair>::iterator i;
+       // Update dist value of the adjacent vertices of the picked vertex.
+       for (i = adj_vec[u].begin(); i != adj_vec[u].end(); i++)
+       {
+         // Update dist[v] only if is not in sptSet, there is an edge from
+         // u to v, and total weight of path from src to  v through u is
+         // smaller than current value of dist[v]
+         int v = (*i).second;
+         double weight = (*i).first;
+
+         // If there is shorted path to v through u.
+         if (dist[v] > dist[u] + weight)
+         {
+             // Updating distance of v
+             dist[v] = dist[u] + weight;
+             pq.push(std::make_pair(dist[v], v));
+             prev[v] = u;
+         }
+       }
+     }
+
+     int u = des;
+     if(prev[u]>=0 || u==src)
+     {
+       while(u>=0)
+       {
+         parent.push_back(u);
+         u = prev[u];
+       }
+     }
+
+     dij_out retval;
+     retval.min_dist = dist[des];
+     retval.prev = prev;
+     retval.dist = dist;
+     retval.parent = parent;
+
+     return retval;
+}
+
+std::vector<int> furthest_sample(std::vector<std::vector<double>> &A, int n_samples, int m_v){
+  // this the FPS part
+
+  std::vector<std::vector<dij_Pair>> my_pair(A.size());
+  for(size_t i=0; i<A.size(); i++)
+  {
+    for(size_t j=0; j<A[i].size(); j++)
+    {
+      long int k = A[i][j];
+      double weight = l2_norm(V, i, k);
+      // V_cost(i, k) = weight;
+      my_pair[i].push_back(std::make_pair(weight, k));
+    }
+  }
+
+  std::vector<bool> isVertexUsed(m_v);
+  Eigen::MatrixXd fps_geo_dist(n_samples, m_v);
+  for (size_t i = 0; i < m_v; i++) {
+    isVertexUsed[i] = false;
+  }
+  isVertexUsed[0] = true;
+  std::vector<int> fps(n_samples);
+  fps[0] = 0;
+  for (size_t i = 1; i < n_samples; i++) {
+    // int len_try = m_v-i;
+    double max = 0;
+    int max_place = 0;
+    dij_out my_dij = dijkstra_fibo_heap(my_pair, fps[i-1], 0);
+    for (size_t j = 0; j < m_v; j++) {
+      fps_geo_dist(i-1, j) = my_dij.dist[j];
+    }
+    // std::vector<double> distances(len_try);
+    for (size_t j = 0; j < m_v; j++) {
+      if(isVertexUsed[j])
+        continue;
+
+      double min_inner = INT_MAX;
+      for (size_t k = 0; k < i; k++) {
+        // dij_out my_dij = dijkstra(V_cost, fps[k], j);
+        size_t vert_index = fps[k];
+        double curr_dist = fps_geo_dist(k, j);
+        if(curr_dist < min_inner)
+          min_inner = curr_dist;
+      }
+      if(max < min_inner)
       {
-        common.push_back(src[i]);
+        max = min_inner;
+        max_place = j;
       }
+
     }
-  }
-  if(common.size() >= 2)
-  {
-    comm_2.first = common[0];
-    comm_2.second = common[1];
-    return true;
-  }
-  else if(common.size() == 1)
-  {
-    comm_2.first = common[0];
-    comm_2.second = common[0];
-    return true;
-  }
-  else
-  {
-    std::cout << "Not two common vertices!" << '\n';
-    for (size_t i = 0; i < src.size(); i++) {
-      std::cout << src[i] << " ";
-      if(i==src.size()-1)
-        std::cout << '\n';
-    }
-    for (size_t i = 0; i < dst.size(); i++) {
-      std::cout << dst[i] << " ";
-      if(i==dst.size()-1)
-        std::cout << '\n';
-    }
-    return false;
+    fps[i] = max_place;
+    isVertexUsed[max_place] = true;
+    std::cout << "The iteration number is " << i << '\n';
+    std::cout << "The selected vertex is " << max_place << '\n';
   }
 
+  return fps;
 }
-
-double cot_2_vectors(Eigen::Vector3d &vec_1, Eigen::Vector3d &vec_2)
-{
-  double dot = vec_1.dot(vec_2);   //between [x1, y1, z1] and [x2, y2, z2]
-  // Eigen::Vector3d cross;
-  // cross = vec_1.cross(vec_2);
-  // double cross_norm = cross.norm();
-  double v_1_norm = vec_1.norm();
-  double v_2_norm = vec_2.norm();
-  double angle = acos(dot/(v_1_norm*v_2_norm));
-
-  return 1/tan(angle);
-
-}
-
-double tan_over_2_vectors(Eigen::Vector3d &vec_1, Eigen::Vector3d &vec_2)
-{
-  double dot = vec_1.dot(vec_2);   //between [x1, y1, z1] and [x2, y2, z2]
-  // Eigen::Vector3d cross;
-  // cross = vec_1.cross(vec_2);
-  // double cross_norm = cross.norm();
-  double v_1_norm = vec_1.norm();
-  double v_2_norm = vec_2.norm();
-  double angle = acos(dot/(v_1_norm*v_2_norm));
-
-  return tan(angle/2);
-
-}
-
-void boundry_map_circle(const Eigen::MatrixXd& V, const Eigen::VectorXi& bnd,
-  Eigen::MatrixXd& bnd_uv)
-{
-  // Get sorted list of boundary vertices
-  std::vector<int> interior,map_ij;
-  map_ij.resize(V.rows());
-
-  std::vector<bool> isOnBnd(V.rows(),false);
-  for (int i = 0; i < bnd.size(); i++)
-  {
-    isOnBnd[bnd[i]] = true;
-    map_ij[bnd[i]] = i;
-  }
-
-  for (int i = 0; i < (int)isOnBnd.size(); i++)
-  {
-    if (!isOnBnd[i])
-    {
-      map_ij[i] = interior.size();
-      interior.push_back(i);
-    }
-  }
-
-  // Map boundary to unit circle
-  std::vector<double> circle_len(bnd.size());
-  circle_len[0] = 0.;
-
-  for (int i = 1; i < bnd.size(); i++)
-  {
-    circle_len[i] = circle_len[i-1] + (V.row(bnd[i-1]) - V.row(bnd[i])).norm();
-  }
-  double total_circle_len = circle_len[circle_len.size()-1] + (V.row(bnd[0]) - V.row(bnd[bnd.size()-1])).norm();
-
-  bnd_uv.resize(bnd.size(),2);
-  for (int i = 0; i < bnd.size(); i++)
-  {
-    double len_frac = circle_len[i] * 2. * igl::PI / total_circle_len;
-    bnd_uv.row(map_ij[bnd[i]]) << cos(len_frac), sin(len_frac);
-  }
-
-}
-
-void parametrization_uniform(Eigen::MatrixXd &V, Eigen::VectorXi &bnd,
-  Eigen::MatrixXd &bnd_uv, std::vector<std::vector<double>> &A,
-  Eigen::MatrixXd &V_uv_uni)
-{
-  Eigen::MatrixXd W;
-  W = Eigen::MatrixXd::Zero(V.rows(), V.rows());
-
-  // boundry mask
-  Eigen::MatrixXd bnd_mask ;
-  bnd_mask = Eigen::MatrixXd::Zero(V.rows(), 3);
-
-  for (size_t i = 0; i < bnd.size(); i++) {
-    bnd_mask(bnd(i), 0) = 1;
-    bnd_mask(bnd(i), 1) = bnd_uv(i,0);
-    bnd_mask(bnd(i), 2) = bnd_uv(i,1);
-  }
-
-  Eigen::MatrixXd b;
-  b = Eigen::MatrixXd::Zero(V.rows(), 2);
-
-  for (size_t i = 0; i < V.rows(); i++) {
-    if(bnd_mask(i, 0) == 1)
-    {
-      W(i,i) = 1;
-      b(i, 0) = bnd_mask(i, 1);
-      b(i, 1) = bnd_mask(i, 2);
-    }
-    else
-    {
-      std::vector<double> temp_adj = A[i];
-      int temp_len = temp_adj.size();
-      // std::cout << "Diagonal value is " << temp_len << '\n';
-      for (size_t j = 0; j < temp_adj.size(); j++) {
-        int k =  int(temp_adj[j]);
-        W(i, k) = 1;
-      }
-      W(i,i) = -1*temp_len;
-      // std::cout << "Inserted element is " << W.coeffRef(i,i) << '\n';
-    }
-  }
-  V_uv_uni = W.colPivHouseholderQr().solve(b);
-
-}
-
-void parametrization_harmonic_2(Eigen::MatrixXd &V, Eigen::VectorXi &bnd,
-  Eigen::MatrixXd &bnd_uv, std::vector<std::vector<double>> &A,
-  Eigen::MatrixXd &V_uv_uni)
-{
-  Eigen::MatrixXd W;
-  W = Eigen::MatrixXd::Zero(V.rows(), V.rows());
-
-  // boundry mask
-  Eigen::MatrixXd bnd_mask ;
-  bnd_mask = Eigen::MatrixXd::Zero(V.rows(), 3);
-
-  for (size_t i = 0; i < bnd.size(); i++) {
-    bnd_mask(bnd(i), 0) = 1;
-    bnd_mask(bnd(i), 1) = bnd_uv(i,0);
-    bnd_mask(bnd(i), 2) = bnd_uv(i,1);
-  }
-
-  Eigen::MatrixXd b;
-  b = Eigen::MatrixXd::Zero(V.rows(), 2);
-
-  for (size_t i = 0; i < V.rows(); i++) {
-    if(bnd_mask(i, 0) == 1)
-    {
-      W(i,i) = 1;
-      b(i, 0) = bnd_mask(i, 1);
-      b(i, 1) = bnd_mask(i, 2);
-    }
-    else
-    {
-      std::vector<double> temp_adj = A[i];
-      int temp_len = temp_adj.size();
-      // std::cout << "Diagonal value is " << temp_len << '\n';
-      for (size_t j = 0; j < temp_adj.size(); j++) {
-        int k =  int(temp_adj[j]);
-        // W(i, k) = 1;
-        // method 2 beginning
-        harm_pair temp_pair;
-        if(find_2_common_vertices(A[i], A[k], temp_pair))
-        {
-          // std::cout << "i and k are " << i << " " << k << '\n';
-          // std::cout << "Pair values are " << temp_pair.first << " " << temp_pair.second << '\n';
-          Eigen::Vector3d vec_1 = V.row(i) - V.row(temp_pair.first);
-          Eigen::Vector3d vec_2 = V.row(k) - V.row(temp_pair.first);
-          Eigen::Vector3d vec_3 = V.row(i) - V.row(temp_pair.second);
-          Eigen::Vector3d vec_4 = V.row(k) - V.row(temp_pair.second);
-          double cot_1 = cot_2_vectors(vec_1, vec_2);
-          double cot_2 = cot_2_vectors(vec_3, vec_4);
-          // std::cout << "cot values are " << cot_1 << " " << cot_2 << '\n';
-          W(i, k) = (cot_1 + cot_2)/2;
-          W(i,i) -= (cot_1 + cot_2)/2;
-        }
-        else
-          std::cout << "Vertices are " << i << " and " << k << '\n';
-      }
-    }
-  }
-  V_uv_uni = W.colPivHouseholderQr().solve(b);
-}
-
-void parametrization_harmonic_3(Eigen::MatrixXd &V, Eigen::VectorXi &bnd,
-  Eigen::MatrixXd &bnd_uv, std::vector<std::vector<double>> &A,
-  Eigen::MatrixXd &V_uv_uni)
-{
-  Eigen::MatrixXd W;
-  W = Eigen::MatrixXd::Zero(V.rows(), V.rows());
-
-  // boundry mask
-  Eigen::MatrixXd bnd_mask ;
-  bnd_mask = Eigen::MatrixXd::Zero(V.rows(), 3);
-
-  for (size_t i = 0; i < bnd.size(); i++) {
-    bnd_mask(bnd(i), 0) = 1;
-    bnd_mask(bnd(i), 1) = bnd_uv(i,0);
-    bnd_mask(bnd(i), 2) = bnd_uv(i,1);
-  }
-
-  Eigen::MatrixXd b;
-  b = Eigen::MatrixXd::Zero(V.rows(), 2);
-
-  for (size_t i = 0; i < V.rows(); i++) {
-    if(bnd_mask(i, 0) == 1)
-    {
-      W(i,i) = 1;
-      b(i, 0) = bnd_mask(i, 1);
-      b(i, 1) = bnd_mask(i, 2);
-    }
-    else
-    {
-      std::vector<double> temp_adj = A[i];
-      int temp_len = temp_adj.size();
-      // std::cout << "Diagonal value is " << temp_len << '\n';
-      for (size_t j = 0; j < temp_adj.size(); j++) {
-        int k =  int(temp_adj[j]);
-        // W(i, k) = 1;
-        // method 2 beginning
-        harm_pair temp_pair;
-        if(find_2_common_vertices(A[i], A[k], temp_pair))
-        {
-          // std::cout << "i and k are " << i << " " << k << '\n';
-          // std::cout << "Pair values are " << temp_pair.first << " " << temp_pair.second << '\n';
-          Eigen::Vector3d vec_1 = V.row(temp_pair.first) - V.row(i);
-          Eigen::Vector3d vec_2 = V.row(k) - V.row(i);
-          Eigen::Vector3d vec_3 = V.row(temp_pair.second) - V.row(i);
-
-          double tan_1 = tan_over_2_vectors(vec_1, vec_2);
-          double tan_2 = tan_over_2_vectors(vec_2, vec_3);
-          // std::cout << "cot values are " << tan_1 << " " << tan_2 << '\n';
-
-          W(i, k) = (tan_1 + tan_2)/(2*vec_2.norm());
-          W(i,i) -= (tan_1 + tan_2)/(2*vec_2.norm());
-        }
-      }
-    }
-  }
-  V_uv_uni = W.colPivHouseholderQr().solve(b);
-}
-
-
-
 
 int main(int argc, char *argv[])
 {
@@ -309,12 +182,12 @@ int main(int argc, char *argv[])
     std::exit(1);
   }
 
-  int method_no = 1;
+  int n_samples = 100;
 
   try
   {
     if(argc >= 3)
-      method_no = std::stoi(argv[2]);
+      n_samples = std::stoi(argv[2]);
   }
   catch(...)
   {
@@ -355,28 +228,45 @@ int main(int argc, char *argv[])
   std::uniform_int_distribution<> distr(0, V.rows()); // define the range
 
 // Eigen::MatrixXd L = Eigen::MatrixXd::Zero(V.rows(), V.rows());
-int n_samples = 100;
+
 // Eigen::SparseMatrix<double> L(V.rows(), V.rows());
 Eigen::SparseMatrix<double> A_sp(V.rows() + n_samples, V.rows());
   // find the adjacency list
-  std::vector<std::vector<double>> A;
-  igl::adjacency_list(F,A, true);
+std::vector<std::vector<double>> A;
+igl::adjacency_list(F,A, true);
+
+
 
 // std::vector<Eigen::Triplet<double>> tripletList;
 // tripletList.reserve(estimation_of_entries);
 std::cout << "Creating L matrix" << '\n';
 for (size_t i = 0; i < A.size(); i++) {
   A_sp.insert(i,i) = 1.0;
+  float A_size = A[i].size();
   for (size_t k = 0; k < A[i].size(); k++) {
     int j = int(A[i][k]);
-    A_sp.insert(i,j) = -1/A[i].size();
+    A_sp.insert(i,j) = -1/A_size;
   }
 }
 
 std::vector<int> f_list(n_samples);
 for (size_t i = 0; i < n_samples; i++) {
-  f_list[i] = distr(eng);
+  int new_vertex = distr(eng);
+  bool is_vertex_element = true;
+  while (is_vertex_element) {
+    is_vertex_element = false;
+    for (size_t j = 0; j < i; j++) {
+      if(f_list[j]==new_vertex) {
+        is_vertex_element = true;
+        new_vertex = distr(eng);
+      }
+    }
+  }
+  f_list[i] = new_vertex;
 }
+
+// get ready for fps
+// std::vector<int> f_list = furthest_sample(A, n_samples, V.rows());
 
 // for (size_t i = 0; i < f_list.size(); i++) {
 //   if(i == 0) {std::cout << "Random vertices are :" << '\n';}
@@ -391,6 +281,8 @@ for (size_t i = 0; i < n_samples; i++) {
   A_sp.insert(i + V.rows(),j) = 1.0;
 }
 
+A_sp.makeCompressed();
+
 Eigen::VectorXd x_s = Eigen::VectorXd::Zero(V.rows() + n_samples);
 Eigen::VectorXd y_s = Eigen::VectorXd::Zero(V.rows() + n_samples);
 Eigen::VectorXd z_s = Eigen::VectorXd::Zero(V.rows() + n_samples);
@@ -401,9 +293,33 @@ for (size_t i = 0; i < n_samples; i++) {
   z_s(i + V.rows()) = V(j, 2);
 }
 
-Eigen::VectorXd x_res, y_res;
+
+Eigen::VectorXd x_res, y_res, z_res;
+// Eigen::SparseMatrix<double> AT(A_sp.transpose());
+// std::cout << "A_sp size is " << A_sp.rows() << " " << A_sp.cols() << '\n';
+// std::cout << "AT size is " << AT.rows() << " " << AT.cols() << '\n';
+// Eigen::SparseMatrix<double> ATA(AT * A_sp);
+// Eigen::SparseMatrix<double> ATA_Inv(ATA.inverse());
+// Eigen::COLAMDOrdering<int>
+std::cout << "Computing A_sp" << '\n';
 Eigen::LeastSquaresConjugateGradient<Eigen::SparseMatrix<double> > solver;
-x_res = solver.compute(A_sp).solve(x_s);
+solver.compute(A_sp);
+if(solver.info() != Eigen::Success) {
+    // decomposition failed
+    std::cerr << "Decompostion failed for sparse matrix S_p" << '\n';
+    return -1;
+  }
+std::cout << "Computing x_res" << '\n';
+x_res = solver.solve(x_s);
+std::cout << "Computing y_res" << '\n';
+y_res = solver.solve(y_s);
+std::cout << "Computing z_res" << '\n';
+z_res = solver.solve(z_s);
+
+Eigen::MatrixXd V_lse(V.rows(), V.cols());
+V_lse.col(0) = x_res;
+V_lse.col(1) = y_res;
+V_lse.col(2) = z_res;
 
   // Eigen::VectorXd x_res, y_res;
   // Eigen::SimplicialLDLT<Eigen::SparseMatrix<double> > solver;
@@ -438,7 +354,7 @@ x_res = solver.compute(A_sp).solve(x_s);
 
   // Plot the mesh
   igl::opengl::glfw::Viewer viewer;
-  viewer.data().set_mesh(V, F);
+  viewer.data().set_mesh(V_lse, F);
   // viewer.data().set_uv(V_uv);
   // viewer.data().add_points(bnd_uv, Eigen::RowVector3d(0,0,1));
   // viewer.callback_key_down = &key_down;
