@@ -1,9 +1,17 @@
-## Uniform and Harmonic Parametrization
-This is the CENG 789 course's second assignment by Alp Eren SARI
+## Least Squares Meshes
+This is an libigl implementation of [Least-squares Meshes paper](https://igl.ethz.ch/projects/Laplacian-mesh-processing/ls-meshes/ls-meshes.pdf)
+
+# Building
+On Unix systems, g++ and CMake is required. The steps are as follows
+cd $PROJECT_FOLDER
+mkdir Build && cd build
+cmake ..
+make
+
 
 # Usage
-./assignment_2_bin [F] [M]
+cd $PROJECT_FOLDER/build
+./my_project_bin [F] [M]
 
 F: desired input mesh's path
-M: a number denoting the method (1: uniform parametrization,
-  2: harmonic parametrization method 2, 3: harmonic parametrization method 3)
+M: number of sample points to be used for mesh reconsturction
