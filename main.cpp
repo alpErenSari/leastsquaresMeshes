@@ -321,6 +321,17 @@ V_lse.col(0) = x_res;
 V_lse.col(1) = y_res;
 V_lse.col(2) = z_res;
 
+// Compute cost of reconstruction
+Eigen::MatrixXd delta_V = V - V_lse;
+double rec_cost = 0;
+int m_v = delta_V.rows();
+for (size_t i = 0; i < delta_V.rows(); i++) {
+  Eigen::VectorXd delta_v_i = delta_V.row(i);
+  rec_cost += delta_v_i.norm();
+}
+rec_cost /= delta_V.rows();
+std::cout << "Total reconstruction loss is " << rec_cost << '\n';
+
   // Eigen::VectorXd x_res, y_res;
   // Eigen::SimplicialLDLT<Eigen::SparseMatrix<double> > solver;
   // x_res =solver.compute(W).solve(b.col(0));
