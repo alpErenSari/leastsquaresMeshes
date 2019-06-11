@@ -7,6 +7,7 @@
 #include <cmath>
 #include <random>
 #include "fiboheap.h"
+#define MAX 100000
 
 
 Eigen::MatrixXd V;
@@ -185,15 +186,11 @@ int main(int argc, char *argv[])
   }
 
   int n_samples = 100;
-  int random = 0;
 
   try
   {
     if(argc >= 3)
       n_samples = std::stoi(argv[2]);
-    if(argc >= 4)
-      random = std::stoi(argv[3]);
-
   }
   catch(...)
   {
@@ -256,31 +253,107 @@ for (size_t i = 0; i < A.size(); i++) {
 }
 
 std::vector<int> f_list(n_samples);
-if(random)
-{
-  std::cout << "Using random samples" << '\n';
-  for (size_t i = 0; i < n_samples; i++) {
-    int new_vertex = distr(eng);
-    bool is_vertex_element = true;
-    while (is_vertex_element) {
-      is_vertex_element = false;
-      for (size_t j = 0; j < i; j++) {
-        if(f_list[j]==new_vertex) {
-          is_vertex_element = true;
-          new_vertex = distr(eng);
-        }
-      }
-    }
-    f_list[i] = new_vertex;
-  }
-}
-else
-{
-  // get ready for fps
-  std::cout << "Using FPS samples" << '\n';
-  f_list = furthest_sample(A, n_samples, V.rows());
 
-}
+// for (size_t i = 0; i < n_samples; i++) {
+//   int new_vertex = distr(eng);
+//   bool is_vertex_element = true;
+//   while (is_vertex_element) {
+//     is_vertex_element = false;
+//     for (size_t j = 0; j < i; j++) {
+//       if(f_list[j]==new_vertex) {
+//         is_vertex_element = true;
+//         new_vertex = distr(eng);
+//       }
+//     }
+//   }
+//   f_list[i] = new_vertex;
+// }
+
+// compute the all permutations
+std::vector<bool> v(V.rows());
+std::fill(v.end() - n_samples, v.end(), true);
+
+double min_rec_cost = MAX;
+int count_main_loop = 0;
+Eigen::MatrixXd V_lse(V.rows(), V.cols());
+
+do {
+  int count_p = 0;
+  std::cout << "Count number is " << count_main_loop << '\n';
+    for (int i = 0; i < V.rows(); ++i) {
+        if (v[i]) {
+            // std::cout << (i + 1) << " ";
+            f_list[count_p] = i;
+            count_p++;
+        }
+    }
+    // this part is about computing the matrix
+    for (size_t i = 0; i < n_samples; i++) {
+      long long int j = f_list[i];
+      A_sp.coeffRef(i + V.rows(),j) = 1.0;
+    }
+
+    A_sp.makeCompressed();
+
+    Eigen::VectorXd x_s = Eigen::VectorXd::Zero(V.rows() + n_samples);
+    Eigen::VectorXd y_s = Eigen::VectorXd::Zero(V.rows() + n_samples);
+    Eigen::VectorXd z_s = Eigen::VectorXd::Zero(V.rows() + n_samples);
+    for (size_t i = 0; i < n_samples; i++) {
+      long long int j = f_list[i];
+      x_s(i + V.rows()) = V(j, 0);
+      y_s(i + V.rows()) = V(j, 1);
+      z_s(i + V.rows()) = V(j, 2);
+    }
+
+
+    Eigen::VectorXd x_res, y_res, z_res;
+    // Eigen::SparseMatrix<double> AT(A_sp.transpose());
+    // std::cout << "A_sp size is " << A_sp.rows() << " " << A_sp.cols() << '\n';
+    // std::cout << "AT size is " << AT.rows() << " " << AT.cols() << '\n';
+    // Eigen::SparseMatrix<double> ATA(AT * A_sp);
+    // Eigen::SparseMatrix<double> ATA_Inv(ATA.inverse());
+    // Eigen::COLAMDOrdering<int>
+    std::cout << "Computing A_sp at step " << count_main_loop << '\n';
+    Eigen::LeastSquaresConjugateGradient<Eigen::SparseMatrix<double> > solver;
+    solver.compute(A_sp);
+    if(solver.info() != Eigen::Success) {
+        // decomposition failed
+        std::cerr << "Decompostion failed for sparse matrix S_p" << '\n';
+        return -1;
+      }
+    // std::cout << "Computing x_res" << '\n';
+    x_res = solver.solve(x_s);
+    // std::cout << "Computing y_res" << '\n';
+    y_res = solver.solve(y_s);
+    // std::cout << "Computing z_res" << '\n';
+    z_res = solver.solve(z_s);
+
+
+
+
+    // Compute cost of reconstruction
+    Eigen::MatrixXd delta_V = V - V_lse;
+    double rec_cost = 0;
+    int m_v = delta_V.rows();
+    for (size_t i = 0; i < delta_V.rows(); i++) {
+      Eigen::VectorXd delta_v_i = delta_V.row(i);
+      rec_cost += delta_v_i.norm();
+    }
+    rec_cost /= delta_V.rows();
+    if(rec_cost < min_rec_cost)
+    {
+      min_rec_cost = rec_cost;
+      V_lse.col(0) = x_res;
+      V_lse.col(1) = y_res;
+      V_lse.col(2) = z_res;
+    }
+    count_main_loop++;
+    // std::cout << "Total reconstruction loss is " << rec_cost << '\n';
+} while (std::next_permutation(v.begin(), v.end()));
+
+
+// get ready for fps
+// std::vector<int> f_list = furthest_sample(A, n_samples, V.rows());
 
 // for (size_t i = 0; i < f_list.size(); i++) {
 //   if(i == 0) {std::cout << "Random vertices are :" << '\n';}
@@ -288,64 +361,9 @@ else
 //   else {std::cout << f_list[i] << " ";}
 // }
 
-
 // Eigen::SparseMatrix<double> F_sample(n_samples, V.rows());
 // insert 1's to selected sample vertices' places
-for (size_t i = 0; i < n_samples; i++) {
-  long long int j = f_list[i];
-  A_sp.coeffRef(i + V.rows(),j) = 1.0;
-}
 
-A_sp.makeCompressed();
-
-Eigen::VectorXd x_s = Eigen::VectorXd::Zero(V.rows() + n_samples);
-Eigen::VectorXd y_s = Eigen::VectorXd::Zero(V.rows() + n_samples);
-Eigen::VectorXd z_s = Eigen::VectorXd::Zero(V.rows() + n_samples);
-for (size_t i = 0; i < n_samples; i++) {
-  long long int j = f_list[i];
-  x_s(i + V.rows()) = V(j, 0);
-  y_s(i + V.rows()) = V(j, 1);
-  z_s(i + V.rows()) = V(j, 2);
-}
-
-
-Eigen::VectorXd x_res, y_res, z_res;
-// Eigen::SparseMatrix<double> AT(A_sp.transpose());
-// std::cout << "A_sp size is " << A_sp.rows() << " " << A_sp.cols() << '\n';
-// std::cout << "AT size is " << AT.rows() << " " << AT.cols() << '\n';
-// Eigen::SparseMatrix<double> ATA(AT * A_sp);
-// Eigen::SparseMatrix<double> ATA_Inv(ATA.inverse());
-// Eigen::COLAMDOrdering<int>
-std::cout << "Computing A_sp" << '\n';
-Eigen::LeastSquaresConjugateGradient<Eigen::SparseMatrix<double> > solver;
-solver.compute(A_sp);
-if(solver.info() != Eigen::Success) {
-    // decomposition failed
-    std::cerr << "Decompostion failed for sparse matrix S_p" << '\n';
-    return -1;
-  }
-std::cout << "Computing x_res" << '\n';
-x_res = solver.solve(x_s);
-std::cout << "Computing y_res" << '\n';
-y_res = solver.solve(y_s);
-std::cout << "Computing z_res" << '\n';
-z_res = solver.solve(z_s);
-
-Eigen::MatrixXd V_lse(V.rows(), V.cols());
-V_lse.col(0) = x_res;
-V_lse.col(1) = y_res;
-V_lse.col(2) = z_res;
-
-// Compute cost of reconstruction
-Eigen::MatrixXd delta_V = V - V_lse;
-double rec_cost = 0;
-int m_v = delta_V.rows();
-for (size_t i = 0; i < delta_V.rows(); i++) {
-  Eigen::VectorXd delta_v_i = delta_V.row(i);
-  rec_cost += delta_v_i.norm();
-}
-rec_cost /= delta_V.rows();
-std::cout << "Total reconstruction loss is " << rec_cost << '\n';
 
   // Eigen::VectorXd x_res, y_res;
   // Eigen::SimplicialLDLT<Eigen::SparseMatrix<double> > solver;

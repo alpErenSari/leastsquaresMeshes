@@ -14,4 +14,4 @@ cd $PROJECT_FOLDER/build
 ./my_project_bin [F] [M]
 
 F: desired input mesh's path
-M: number of sample points to be used for mesh reconsturction
+M: number of sample points to be used for mesh reconstruction
