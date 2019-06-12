@@ -347,6 +347,14 @@ for (size_t i = 0; i < delta_V.rows(); i++) {
 rec_cost /= delta_V.rows();
 std::cout << "Total reconstruction loss is " << rec_cost << '\n';
 
+Eigen::MatrixXd P(n_samples, 3);
+for(size_t i=0; i<f_list.size(); i++)
+{
+  int vertex = f_list[i];
+  // P(i,0) = V(vertex,0), P(i,1) = V(vertex,1), P(i,2) = V(vertex,2);
+  P.row(i) = V.row(vertex);
+}
+
   // Eigen::VectorXd x_res, y_res;
   // Eigen::SimplicialLDLT<Eigen::SparseMatrix<double> > solver;
   // x_res =solver.compute(W).solve(b.col(0));
@@ -381,6 +389,7 @@ std::cout << "Total reconstruction loss is " << rec_cost << '\n';
   // Plot the mesh
   igl::opengl::glfw::Viewer viewer;
   viewer.data().set_mesh(V_lse, F);
+  // viewer.data().add_points(P, Eigen::RowVector3d(0,0,1));
   // viewer.data().set_uv(V_uv);
   // viewer.data().add_points(bnd_uv, Eigen::RowVector3d(0,0,1));
   // viewer.callback_key_down = &key_down;

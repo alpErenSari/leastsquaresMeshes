@@ -11,7 +11,9 @@ make
 
 # Usage
 cd $PROJECT_FOLDER/build
-./my_project_bin [F] [M]
+./my_project_bin [F] [N] [M] 
 
 F: desired input mesh's path
-M: number of sample points to be used for mesh reconstruction
+N: number of sample points to be used for mesh reconstruction
+M: denotes the method for choosing sample points. 0 for FPS and 
+1 for random point sampling
