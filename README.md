@@ -10,10 +10,11 @@ make
 
 
 # Usage
-cd $PROJECT_FOLDER/build
-./my_project_bin [F] [N] [M] 
+`cd $PROJECT_FOLDER/build` <\br>
+If you compile without any change main.cpp file which includes basic implementation with random and FPS point selection methods will be built. If you make changes in `CMakeLists.txt` file and compile with `main_2.cpp` the brute force algorithm will run. If `main_3.cpp` file is build point selection based on maximum number of edges and maximum curvature can be used.
+./my_project_bin [F] [N] [M]
 
 F: desired input mesh's path
 N: number of sample points to be used for mesh reconstruction
-M: denotes the method for choosing sample points. 0 for FPS and 
-1 for random point sampling
+M: denotes the method for choosing sample points. 0 for FPS and
+1 for random point sampling, If you compile main_3.cpp you can also choose 2 for maximum edge point selection and 3 for maximum curvature selection 
