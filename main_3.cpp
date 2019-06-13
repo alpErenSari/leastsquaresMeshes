@@ -7,7 +7,6 @@
 #include <cmath>
 #include <random>
 #include "fiboheap.h"
-#define MAX 100000
 
 
 Eigen::MatrixXd V;
@@ -28,6 +27,27 @@ double l2_norm(Eigen::MatrixXd &V, long int i, long int j)
 {
   return sqrt(pow(V(i,0) - V(j,0), 2) + pow(V(i,1) - V(j,1), 2) +
     pow(V(i,2) - V(j,2), 2));
+}
+
+std::pair<bool, int > findInVector(const std::vector<int>  & vecOfElements, const int element)
+{
+	std::pair<bool, int > result;
+
+	// Find given element in vector
+	auto it = std::find(vecOfElements.begin(), vecOfElements.end(), element);
+
+	if (it != vecOfElements.end())
+	{
+		result.second = distance(vecOfElements.begin(), it);
+		result.first = true;
+	}
+	else
+	{
+		result.first = false;
+		result.second = -1;
+	}
+
+	return result;
 }
 
 dij_out dijkstra_fibo_heap(std::vector<std::vector<dij_Pair>> adj_vec, int src, int des)
@@ -186,11 +206,15 @@ int main(int argc, char *argv[])
   }
 
   int n_samples = 100;
+  int random = 0;
 
   try
   {
     if(argc >= 3)
       n_samples = std::stoi(argv[2]);
+    if(argc >= 4)
+      random = std::stoi(argv[3]);
+
   }
   catch(...)
   {
@@ -233,7 +257,7 @@ int main(int argc, char *argv[])
 // Eigen::MatrixXd L = Eigen::MatrixXd::Zero(V.rows(), V.rows());
 
 // Eigen::SparseMatrix<double> L(V.rows(), V.rows());
-
+Eigen::SparseMatrix<double> A_sp(V.rows() + n_samples, V.rows());
   // find the adjacency list
 std::vector<std::vector<double>> A;
 igl::adjacency_list(F,A, true);
@@ -242,130 +266,164 @@ igl::adjacency_list(F,A, true);
 
 // std::vector<Eigen::Triplet<double>> tripletList;
 // tripletList.reserve(estimation_of_entries);
+std::cout << "Creating L matrix" << '\n';
+std::vector<std::pair<double, int>> neigh_num(A.size());
+
+for (size_t i = 0; i < A.size(); i++) {
+  A_sp.coeffRef(i,i) = 1.0;
+  float A_size = A[i].size();
+  // Eigen::VectorXd mean_v = Eigen::VectorXd::Zero(3);
+  Eigen::VectorXd mean_v = V.row(i);
+  for (size_t k = 0; k < A[i].size(); k++) {
+    int j = int(A[i][k]);
+    A_sp.coeffRef(i,j) = -1/A_size;
+    mean_v -= V.row(j)/A_size;
+  }
+  if(random==2){
+    neigh_num[i].first = mean_v.norm();
+  }
+  else{
+    neigh_num[i].first = A[i].size();
+  }
+
+  neigh_num[i].second = i;
+}
+
+sort(neigh_num.begin(), neigh_num.end());
 
 
 std::vector<int> f_list(n_samples);
-std::vector<int> f_min_list(n_samples);
+if(random)
+{
+  std::cout << "Using random samples" << '\n';
+  for (size_t i = 0; i < n_samples; i++) {
+    int new_vertex = distr(eng);
+    bool is_vertex_element = true;
+    while (is_vertex_element) {
+      is_vertex_element = false;
+      for (size_t j = 0; j < i; j++) {
+        if(f_list[j]==new_vertex) {
+          is_vertex_element = true;
+          new_vertex = distr(eng);
+        }
+      }
+    }
+    f_list[i] = new_vertex;
+  }
+}
+else
+{
+  // get ready for fps
+  std::cout << "Using FPS samples" << '\n';
+  f_list = furthest_sample(A, n_samples, V.rows());
 
-// for (size_t i = 0; i < n_samples; i++) {
-//   int new_vertex = distr(eng);
-//   bool is_vertex_element = true;
-//   while (is_vertex_element) {
-//     is_vertex_element = false;
-//     for (size_t j = 0; j < i; j++) {
-//       if(f_list[j]==new_vertex) {
-//         is_vertex_element = true;
-//         new_vertex = distr(eng);
-//       }
-//     }
-//   }
-//   f_list[i] = new_vertex;
+}
+
+for (size_t i = 0; i < f_list.size(); i++) {
+  // std::cout << "Neighbor number is " << neigh_num[neigh_num.size()-i-1].second << '\n';
+  f_list[i] = neigh_num[neigh_num.size()-i-1].second;
+  // f_list[i] = neigh_num[i].second;
+}
+
+// for (size_t i = 0; i < f_list.size(); i++) {
+//   if(i == 0) {std::cout << "Random vertices are :" << '\n';}
+//   else if(i == f_list.size()-1) {std::cout << '\n';}
+//   else {std::cout << f_list[i] << " ";}
 // }
 
-// compute the all permutations
-std::vector<bool> v(V.rows(), false);
-std::fill(v.end() - n_samples, v.end(), true);
 
-double min_rec_cost = MAX;
-int count_main_loop = 0;
+// Eigen::SparseMatrix<double> F_sample(n_samples, V.rows());
+// insert 1's to selected sample vertices' places
+int number_of_iteration = 0;
 Eigen::MatrixXd V_lse(V.rows(), V.cols());
+std::vector<int> black_list;
+// do {
+  for (size_t i = 0; i < n_samples; i++) {
+    long long int j = f_list[i];
+    A_sp.coeffRef(i + V.rows(),j) = 1.0;
+  }
 
-do {
-  int count_p = 0;
-  // if(count_main_loop%1e5 != 0)
-  // {
-	//  continue;
-  // }
-  std::cout << "Count number is " << count_main_loop << '\n';
-    for (int i = 0; i < V.rows(); ++i) {
-        if (v[i]) {
-            // std::cout << (i + 1) << " ";
-            f_list[count_p] = i;
-            count_p++;
-        }
+  A_sp.makeCompressed();
+
+  Eigen::VectorXd x_s = Eigen::VectorXd::Zero(V.rows() + n_samples);
+  Eigen::VectorXd y_s = Eigen::VectorXd::Zero(V.rows() + n_samples);
+  Eigen::VectorXd z_s = Eigen::VectorXd::Zero(V.rows() + n_samples);
+  for (size_t i = 0; i < n_samples; i++) {
+    long long int j = f_list[i];
+    x_s(i + V.rows()) = V(j, 0);
+    y_s(i + V.rows()) = V(j, 1);
+    z_s(i + V.rows()) = V(j, 2);
+  }
+
+
+  Eigen::VectorXd x_res, y_res, z_res;
+  // Eigen::SparseMatrix<double> AT(A_sp.transpose());
+  // std::cout << "A_sp size is " << A_sp.rows() << " " << A_sp.cols() << '\n';
+  // std::cout << "AT size is " << AT.rows() << " " << AT.cols() << '\n';
+  // Eigen::SparseMatrix<double> ATA(AT * A_sp);
+  // Eigen::SparseMatrix<double> ATA_Inv(ATA.inverse());
+  // Eigen::COLAMDOrdering<int>
+  std::cout << "Computing A_sp" << '\n';
+  Eigen::LeastSquaresConjugateGradient<Eigen::SparseMatrix<double> > solver;
+  solver.compute(A_sp);
+  if(solver.info() != Eigen::Success) {
+      // decomposition failed
+      std::cerr << "Decompostion failed for sparse matrix S_p" << '\n';
+      return -1;
     }
-    Eigen::SparseMatrix<double> A_sp(V.rows() + n_samples, V.rows());
-    std::cout << "Creating L matrix" << '\n';
-    for (size_t i = 0; i < A.size(); i++) {
-      A_sp.coeffRef(i,i) = 1.0;
-      float A_size = A[i].size();
-      for (size_t k = 0; k < A[i].size(); k++) {
-        int j = int(A[i][k]);
-        A_sp.coeffRef(i,j) = -1/A_size;
-      }
+  std::cout << "Computing x_res" << '\n';
+  x_res = solver.solve(x_s);
+  std::cout << "Computing y_res" << '\n';
+  y_res = solver.solve(y_s);
+  std::cout << "Computing z_res" << '\n';
+  z_res = solver.solve(z_s);
+
+
+  V_lse.col(0) = x_res;
+  V_lse.col(1) = y_res;
+  V_lse.col(2) = z_res;
+
+  // Compute cost of reconstruction
+  Eigen::MatrixXd delta_V = V - V_lse;
+  double rec_cost = 0;
+  int m_v = delta_V.rows();
+  double max_error = 0;
+  int max_error_place = 0;
+  for (size_t i = 0; i < delta_V.rows(); i++) {
+    Eigen::VectorXd delta_v_i = delta_V.row(i);
+    double error_v = delta_v_i.norm();
+    rec_cost += error_v;
+    std::vector<int>::iterator it_black = std::find(black_list.begin(), black_list.end(), i);
+    if(error_v > max_error && it_black == black_list.end()){
+      max_error = error_v;
+      max_error_place = i;
     }
-    // this part is about computing the matrix
-    for (size_t i = 0; i < n_samples; i++) {
-      long long int j = f_list[i];
-      A_sp.coeffRef(i + V.rows(),j) = 1.0;
-    }
-
-    A_sp.makeCompressed();
-
-    Eigen::VectorXd x_s = Eigen::VectorXd::Zero(V.rows() + n_samples);
-    Eigen::VectorXd y_s = Eigen::VectorXd::Zero(V.rows() + n_samples);
-    Eigen::VectorXd z_s = Eigen::VectorXd::Zero(V.rows() + n_samples);
-    for (size_t i = 0; i < n_samples; i++) {
-      long long int j = f_list[i];
-      x_s(i + V.rows()) = V(j, 0);
-      y_s(i + V.rows()) = V(j, 1);
-      z_s(i + V.rows()) = V(j, 2);
-    }
+  }
 
 
-    Eigen::VectorXd x_res, y_res, z_res;
-    // Eigen::SparseMatrix<double> AT(A_sp.transpose());
-    // std::cout << "A_sp size is " << A_sp.rows() << " " << A_sp.cols() << '\n';
-    // std::cout << "AT size is " << AT.rows() << " " << AT.cols() << '\n';
-    // Eigen::SparseMatrix<double> ATA(AT * A_sp);
-    // Eigen::SparseMatrix<double> ATA_Inv(ATA.inverse());
-    // Eigen::COLAMDOrdering<int>
-    std::cout << "Computing A_sp at step " << count_main_loop << '\n';
-    Eigen::LeastSquaresConjugateGradient<Eigen::SparseMatrix<double> > solver;
-    solver.compute(A_sp);
-    if(solver.info() != Eigen::Success) {
-        // decomposition failed
-        std::cerr << "Decompostion failed for sparse matrix S_p" << '\n';
-        return -1;
-      }
-    // std::cout << "Computing x_res" << '\n';
-    x_res = solver.solve(x_s);
-    // std::cout << "Computing y_res" << '\n';
-    y_res = solver.solve(y_s);
-    // std::cout << "Computing z_res" << '\n';
-    z_res = solver.solve(z_s);
-
-    Eigen::MatrixXd V_lse_temp(V.rows(), V.cols());
-    V_lse_temp.col(0) = x_res;
-    V_lse_temp.col(1) = y_res;
-    V_lse_temp.col(2) = z_res;
+  rec_cost /= delta_V.rows();
+  std::cout << "Total reconstruction loss is " << rec_cost << '\n';
+  std::cout << "Max error vertice is " << max_error_place << '\n';
+//   std::pair<bool, int > search_res;
+//   // Check if element 22 exists in vector
+//   std::vector<int>::iterator it = std::find(f_list.begin(), f_list.end(), max_error_place);
+//   search_res = findInVector(f_list, max_error_place);
+//   std::cout << "search res is " << search_res.first << '\n';
+//   if(it == f_list.end()){
+//     f_list[number_of_iteration] = max_error_place;
+//
+//     std::cout << "vertex number " << max_error_place << " is placed at place "
+//     << number_of_iteration << '\n';
+//     number_of_iteration++;
+//   }
+//   else{
+//     black_list.push_back(max_error_place);
+//   }
+//
+// }while(number_of_iteration<n_samples);
 
 
 
-    // Compute cost of reconstruction
-    Eigen::MatrixXd delta_V = V - V_lse_temp;
-    double rec_cost = 0;
-    int m_v = delta_V.rows();
-    for (size_t i = 0; i < delta_V.rows(); i++) {
-      Eigen::VectorXd delta_v_i = delta_V.row(i);
-      rec_cost += delta_v_i.norm();
-    }
-    rec_cost /= delta_V.rows();
-    std::cout << "rec cost is " << rec_cost << '\n';
-    if(rec_cost < min_rec_cost)
-    {
-      min_rec_cost = rec_cost;
-      V_lse.col(0) = x_res;
-      V_lse.col(1) = y_res;
-      V_lse.col(2) = z_res;
-      f_min_list = f_list;
-    }
-    count_main_loop++;
-    // std::cout << "Total reconstruction loss is " << rec_cost << '\n';
-} while (std::next_permutation(v.begin(), v.end()));
-
-std::cout << "Total reconstruction loss is " << min_rec_cost << '\n';
-std::cout << "Total iteration number is " << count_main_loop << '\n';
 
 Eigen::MatrixXd P(n_samples, 3);
 for(size_t i=0; i<f_list.size(); i++)
@@ -374,19 +432,6 @@ for(size_t i=0; i<f_list.size(); i++)
   // P(i,0) = V(vertex,0), P(i,1) = V(vertex,1), P(i,2) = V(vertex,2);
   P.row(i) = V.row(vertex);
 }
-
-// get ready for fps
-// std::vector<int> f_list = furthest_sample(A, n_samples, V.rows());
-
-// for (size_t i = 0; i < f_list.size(); i++) {
-//   if(i == 0) {std::cout << "Random vertices are :" << '\n';}
-//   else if(i == f_list.size()-1) {std::cout << '\n';}
-//   else {std::cout << f_list[i] << " ";}
-// }
-
-// Eigen::SparseMatrix<double> F_sample(n_samples, V.rows());
-// insert 1's to selected sample vertices' places
-
 
   // Eigen::VectorXd x_res, y_res;
   // Eigen::SimplicialLDLT<Eigen::SparseMatrix<double> > solver;
@@ -422,7 +467,7 @@ for(size_t i=0; i<f_list.size(); i++)
   // Plot the mesh
   igl::opengl::glfw::Viewer viewer;
   viewer.data().set_mesh(V_lse, F);
-  viewer.data().add_points(P, Eigen::RowVector3d(0,0,1));
+ viewer.data().add_points(P, Eigen::RowVector3d(0,0,1));
   // viewer.data().set_uv(V_uv);
   // viewer.data().add_points(bnd_uv, Eigen::RowVector3d(0,0,1));
   // viewer.callback_key_down = &key_down;

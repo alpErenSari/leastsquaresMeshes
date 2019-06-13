@@ -231,7 +231,7 @@ int main(int argc, char *argv[])
 
   std::random_device rd; // obtain a random number from hardware
   std::mt19937 eng(rd()); // seed the gen#include<Eigen/SparseCholesky>erator
-  std::uniform_int_distribution<> distr(0, V.rows()); // define the range
+  std::uniform_int_distribution<> distr(0, V.rows()-1); // define the range
 
 // Eigen::MatrixXd L = Eigen::MatrixXd::Zero(V.rows(), V.rows());
 
@@ -291,11 +291,13 @@ else
 
 // Eigen::SparseMatrix<double> F_sample(n_samples, V.rows());
 // insert 1's to selected sample vertices' places
+// std::cout << "step 1" << '\n';
 for (size_t i = 0; i < n_samples; i++) {
+  // std::cout << "for loop it " << i << '\n';
   long long int j = f_list[i];
   A_sp.coeffRef(i + V.rows(),j) = 1.0;
 }
-
+// std::cout << "step 2" << '\n';
 A_sp.makeCompressed();
 
 Eigen::VectorXd x_s = Eigen::VectorXd::Zero(V.rows() + n_samples);
@@ -308,7 +310,7 @@ for (size_t i = 0; i < n_samples; i++) {
   z_s(i + V.rows()) = V(j, 2);
 }
 
-
+// std::cout << "step 3" << '\n';
 Eigen::VectorXd x_res, y_res, z_res;
 // Eigen::SparseMatrix<double> AT(A_sp.transpose());
 // std::cout << "A_sp size is " << A_sp.rows() << " " << A_sp.cols() << '\n';
@@ -389,7 +391,7 @@ for(size_t i=0; i<f_list.size(); i++)
   // Plot the mesh
   igl::opengl::glfw::Viewer viewer;
   viewer.data().set_mesh(V_lse, F);
-  // viewer.data().add_points(P, Eigen::RowVector3d(0,0,1));
+ viewer.data().add_points(P, Eigen::RowVector3d(0,0,1));
   // viewer.data().set_uv(V_uv);
   // viewer.data().add_points(bnd_uv, Eigen::RowVector3d(0,0,1));
   // viewer.callback_key_down = &key_down;
